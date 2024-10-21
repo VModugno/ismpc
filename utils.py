@@ -18,10 +18,25 @@ def get_rotvec(rot_matrix):
     rotation = R.from_matrix(rot_matrix)
     return rotation.as_rotvec()
 
-# converts a rotation matrix to a quaternion
-def get_quat(rot_matrix):
-    rotation = R.from_matrix(rot_matrix)
-    return rotation.as_quat()
+import numpy as np
+
+def block_diag(*arrays):
+    arrays = [np.atleast_2d(a) if np.isscalar(a) else np.atleast_2d(a) for a in arrays]
+
+    rows = sum(arr.shape[0] for arr in arrays)
+    cols = sum(arr.shape[1] for arr in arrays)
+    block_matrix = np.zeros((rows, cols), dtype=arrays[0].dtype)
+
+    current_row = 0
+    current_col = 0
+
+    for arr in arrays:
+        r, c = arr.shape
+        block_matrix[current_row:current_row + r, current_col:current_col + c] = arr
+        current_row += r
+        current_col += c
+
+    return block_matrix
 
 # solves an unconstrained QP with casadi
 class QPSolver:

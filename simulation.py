@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import footstep_planner
 import inverse_kinematics as ik
 import filter
-from scipy.linalg import block_diag
 
 class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
     def __init__(self, world, hrp4):
