@@ -64,6 +64,20 @@ class QPSolver:
         solution = self.opti.solve()
         q_ddot_des = solution.value(self.x)
         return q_ddot_des
+    
+class LipState:
+    def __init__(self,
+                 com_position=None,
+                 com_velocity=None,
+                 com_acceleration=None,
+                 zmp_position=None,
+                 zmp_velocity=None):
+        
+        self.com_position     = com_position     if com_position     is not None else np.zeros(3)
+        self.com_velocity     = com_velocity     if com_velocity     is not None else np.zeros(3)
+        self.com_acceleration = com_acceleration if com_acceleration is not None else np.zeros(3)
+        self.zmp_position     = zmp_position     if zmp_position     is not None else np.zeros(3)
+        self.zmp_velocity     = zmp_velocity     if zmp_velocity     is not None else np.zeros(3)
 
 class State:
     def __init__(self, ndofs,

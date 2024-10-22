@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import footstep_planner
 import inverse_kinematics as ik
 import filter
+import foot_trajectory_generator as ftg
 
 class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
     def __init__(self, world, hrp4):
@@ -82,6 +83,9 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         # initialize MPC controller
         self.mpc = ismpc.Ismpc(self.initial, self.footstep_planner)
 
+        # initialize foot trajectory generator
+        self.foot_trajectory_generator = ftg.FootTrajectoryGenerator(self.initial, self.footstep_planner)
+
         # initialize kalman filter
         A = np.identity(3) + self.world_time_step * self.mpc.A_lip
         B = self.world_time_step * self.mpc.B_lip
@@ -118,15 +122,36 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         self.current.zmp_position[1] = x_flt[5]
 
         # get references using MPC
-        desired, contact = self.mpc.solve(self.current, self.time)
-        self.desired = desired
-
+        lip_state, contact = self.mpc.solve(self.current, self.time)
         if contact == 'ds':
             pass
         elif contact == 'ssleft':
             self.contact = 'lsole'
         elif contact == 'ssright':
             self.contact = 'rsole'
+            
+        self.desired.com_position     = lip_state.com_position
+        self.desired.com_velocity     = lip_state.com_velocity
+        self.desired.com_acceleration = lip_state.com_acceleration
+        self.desired.zmp_position     = lip_state.zmp_position
+        self.desired.zmp_velocity     = lip_state.zmp_velocity
+
+        # get foot trajectories
+        feet_trajectories = self.foot_trajectory_generator.generate_feet_trajectories_at_time(self.time)
+        self.desired.left_foot_pose          = feet_trajectories['left']['pos']
+        self.desired.left_foot_velocity      = feet_trajectories['left']['vel']
+        self.desired.left_foot_acceleration  = feet_trajectories['left']['acc']
+        self.desired.right_foot_pose         = feet_trajectories['right']['pos']
+        self.desired.right_foot_velocity     = feet_trajectories['right']['vel']
+        self.desired.right_foot_acceleration = feet_trajectories['right']['acc']
+
+        # set torso and base references to the average of the feet
+        self.desired.torso_orientation          = (self.desired.left_foot_pose[:3]         + self.desired.right_foot_pose[:3])         / 2.
+        self.desired.torso_angular_velocity     = (self.desired.left_foot_velocity[:3]     + self.desired.right_foot_velocity[:3])     / 2.
+        self.desired.torso_angular_acceleration = (self.desired.left_foot_acceleration[:3] + self.desired.right_foot_acceleration[:3]) / 2.
+        self.desired.base_orientation           = (self.desired.left_foot_pose[:3]         + self.desired.right_foot_pose[:3])         / 2.
+        self.desired.base_angular_velocity      = (self.desired.left_foot_velocity[:3]     + self.desired.right_foot_velocity[:3])     / 2.
+        self.desired.base_angular_acceleration  = (self.desired.left_foot_acceleration[:3] + self.desired.right_foot_acceleration[:3]) / 2.
 
         # get acceleration commands using IK
         commands = self.ik.get_joint_accelerations(self.desired, self.current, self.contact)
