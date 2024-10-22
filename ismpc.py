@@ -1,6 +1,8 @@
 import numpy as np
 import casadi as cs
 from utils import LipState
+import time
+import matplotlib.pyplot as plt
 
 class Ismpc:
   def __init__(self, initial, footstep_planner, N=100, delta=0.01, g=9.81, h=0.75):
@@ -12,6 +14,7 @@ class Ismpc:
     self.initial = initial
     self.footstep_planner = footstep_planner
     self.footstep_plan = self.footstep_planner.footstep_plan
+    self.sigma = lambda t, t0, t1: np.clip((t - t0) / (t1 - t0), 0, 1) # piecewise linear sigmoidal function
 
     # lip model matrices
     self.A_lip = np.array([[0, 1, 0], [self.eta**2, 0, -self.eta**2], [0, 0, 0]])
@@ -64,13 +67,13 @@ class Ismpc:
   def solve(self, current, t):
     self.x = np.array([current.com_position[0], current.com_velocity[0], current.zmp_position[0],
                        current.com_position[1], current.com_velocity[1], current.zmp_position[1]])
+    
+    mc_x, mc_y = self.generate_moving_constraint(t)
 
     # solve optimization problem
     self.opt.set_value(self.x0_param, self.x)
-    for i in range(self.N):
-      mc = self.generate_moving_constraint_at_time(t + i)
-      self.opt.set_value(self.zmp_x_mid_param[i], mc[0])
-      self.opt.set_value(self.zmp_y_mid_param[i], mc[1])
+    self.opt.set_value(self.zmp_x_mid_param, mc_x)
+    self.opt.set_value(self.zmp_y_mid_param, mc_y)
 
     sol = self.opt.solve()
     self.x = sol.value(self.X[:,1])
@@ -109,3 +112,18 @@ class Ismpc:
     
     moving_constraint = start_pos + (target_pos - start_pos) * ((time_in_step - single_support_duration) / double_support_duration)
     return moving_constraint
+  
+  def generate_moving_constraint(self, t):
+    mc_x = np.full(self.N, (self.initial.left_foot_pose[3] + self.initial.right_foot_pose[3]) / 2.)
+    mc_y = np.full(self.N, (self.initial.left_foot_pose[4] + self.initial.right_foot_pose[4]) / 2.)
+    time_array = np.array(range(t, t + self.N))
+    for j in range(len(self.footstep_plan) - 1):
+      fs_start_time = self.footstep_planner.get_start_time(j)
+      ds_start_time = fs_start_time + self.footstep_plan[j]['ss_duration']
+      fs_end_time = ds_start_time + self.footstep_plan[j]['ds_duration']
+      fs_current_pos = self.footstep_plan[j]['pos'] if j > 0 else np.array([mc_x[0], mc_y[0]])
+      fs_target_pos = self.footstep_plan[j + 1]['pos']
+      mc_x += self.sigma(time_array, ds_start_time, fs_end_time) * (fs_target_pos[0] - fs_current_pos[0])
+      mc_y += self.sigma(time_array, ds_start_time, fs_end_time) * (fs_target_pos[1] - fs_current_pos[1])
+
+    return mc_x, mc_y

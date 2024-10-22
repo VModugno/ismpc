@@ -9,6 +9,7 @@ import footstep_planner
 import inverse_kinematics as ik
 import filter
 import foot_trajectory_generator as ftg
+import time
 
 class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
     def __init__(self, world, hrp4):
@@ -60,7 +61,7 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         self.contact = 'lsole' if first_swing == 'right' else 'rsole' # there is a dummy footstep
 
         self.desired = copy.deepcopy(self.initial)
-        self.initialize_plot()
+        #self.initialize_plot()
 
         # selection matrix for redundant dofs
         redundant_dofs = [ \
@@ -129,7 +130,7 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
             self.contact = 'lsole'
         elif contact == 'ssright':
             self.contact = 'rsole'
-            
+
         self.desired.com_position     = lip_state.com_position
         self.desired.com_velocity     = lip_state.com_velocity
         self.desired.com_acceleration = lip_state.com_acceleration
@@ -338,6 +339,7 @@ if __name__ == "__main__":
 
     # create world node and add it to viewer
     viewer = dart.gui.osg.Viewer()
+    node.setTargetRealTimeFactor(10) # speed up the visualization by 10x
     viewer.addWorldNode(node)
 
     #viewer.setUpViewInWindow(0, 0, 1920, 1080)
