@@ -6,6 +6,16 @@ You need a Python installation and some dependencis. If using PIP, you can run t
 ```
 pip install dartpy casadi scipy matplotlib
 ```
+alternatively you can use the environment.yaml file to install the necessary dependancies for this code
+
+```
+mamba env create -f environment.yaml
+```
+an then you can activate the environment by doing:
+```
+conda activate biped_env
+```
+
 To run the simulation
 ```
 python simulation.py

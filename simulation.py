@@ -10,18 +10,22 @@ import inverse_kinematics as ik
 import filter
 import foot_trajectory_generator as ftg
 import time
+from collections import deque
 
 class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
-    def __init__(self, world, hrp4):
+    def __init__(self, world, hrp4, viewer):
         super(Hrp4Controller, self).__init__(world)
         self.world = world
         self.hrp4 = hrp4
         self.dofs = self.hrp4.getNumDofs()
         world.setTimeStep(0.01)
         self.world_time_step = world.getTimeStep()
+        self.viewer = viewer
         first_swing = 'right'
         self.time = 0
-
+        # visualization variables
+        self.visual_buffer_length = 100
+        self.visualization_graph_flag = False
         # robot links
         self.lsole = hrp4.getBodyNode('l_sole')
         self.rsole = hrp4.getBodyNode('r_sole')
@@ -61,7 +65,9 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         self.contact = 'lsole' if first_swing == 'right' else 'rsole' # there is a dummy footstep
 
         self.desired = copy.deepcopy(self.initial)
-        #self.initialize_plot()
+
+        if self.visualization_graph_flag:
+            self.initialize_plot()
 
         # selection matrix for redundant dofs
         redundant_dofs = [ \
@@ -74,7 +80,14 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
 
         # initialize footstep planner
         self.footstep_planner = footstep_planner.FootstepPlanner(
-            [(0.1, 0., 0.1)] * 20,
+            [(0.1, 0., 0.0)] * 20,
+            #[
+            #    (0.0, 0.0, 0.0),  # Walk forward
+            #    (0.1, 0.0, 0.1),  # Start turning while walking
+            #    (0.1, 0.0, 0.2),  # Increase turning rate
+            #    (0.1, 0.0, 0.0),  # Straighten out
+            #    (0.0, 0.0, 0.0)   # Stop
+            #] * 10,  # Repeat pattern
             self.initial.left_foot_pose,
             self.initial.right_foot_pose,
             'left' if self.contact == 'lsole' else 'right',
@@ -139,6 +152,14 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
 
         # get foot trajectories
         feet_trajectories = self.foot_trajectory_generator.generate_feet_trajectories_at_time(self.time)
+
+        # added ending conditions tio stop the simulation gently
+        if feet_trajectories["end_of_plan"]:
+            print("End of plan")
+            #self.stopSimulation()
+            self.viewer.simulate(False) # stop simulation
+            return
+
         self.desired.left_foot_pose          = feet_trajectories['left']['pos']
         self.desired.left_foot_velocity      = feet_trajectories['left']['vel']
         self.desired.left_foot_acceleration  = feet_trajectories['left']['acc']
@@ -161,7 +182,8 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         for i in range(self.dofs - 6):
             self.hrp4.setCommand(i + 6, commands[i])
 
-        #self.update_plot()
+        if self.visualization_graph_flag:
+            self.update_plot()
 
         self.time += 1
 
@@ -235,12 +257,30 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         
     def initialize_plot(self):
         self.fig, self.ax = plt.subplots(6, 1, figsize=(6, 8))
-        self.com_x_data_1, self.com_y_data_1, self.com_z_data_1 = [], [], []
-        self.com_x_data_2, self.com_y_data_2, self.com_z_data_2 = [], [], []
-        self.foot_x_data_1, self.foot_y_data_1, self.foot_z_data_1 = [], [], []
-        self.foot_x_data_2, self.foot_y_data_2, self.foot_z_data_2 = [], [], []
-        self.zmp_x_data_1, self.zmp_y_data_1 = [], []
-        self.zmp_x_data_2, self.zmp_y_data_2 = [], []
+        #self.com_x_data_1, self.com_y_data_1, self.com_z_data_1 = [], [], []
+        #self.com_x_data_2, self.com_y_data_2, self.com_z_data_2 = [], [], []
+        #self.foot_x_data_1, self.foot_y_data_1, self.foot_z_data_1 = [], [], []
+        #self.foot_x_data_2, self.foot_y_data_2, self.foot_z_data_2 = [], [], []
+        #self.zmp_x_data_1, self.zmp_y_data_1 = [], []
+        #self.zmp_x_data_2, self.zmp_y_data_2 = [], []
+
+         # Initialize data containers with a maximum length
+        self.com_x_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.com_y_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.com_z_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.com_x_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.com_y_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.com_z_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.foot_x_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.foot_y_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.foot_z_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.foot_x_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.foot_y_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.foot_z_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.zmp_x_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.zmp_y_data_1 = deque(maxlen=self.visual_buffer_length)
+        self.zmp_x_data_2 = deque(maxlen=self.visual_buffer_length)
+        self.zmp_y_data_2 = deque(maxlen=self.visual_buffer_length)
 
         self.line_com_x_1, = self.ax[0].plot([], [], color='blue')
         self.line_com_y_1, = self.ax[1].plot([], [], color='blue')
@@ -264,17 +304,27 @@ class Hrp4Controller(dart.gui.osg.RealTimeWorldNode):
         self.line_zmp_2, = self.ax[0].plot([], [], color='orange')
         self.line_zmp_2, = self.ax[1].plot([], [], color='orange')
 
+        self.ax[0].set_title('CoM and ZMP X Coordinates')
+        self.ax[1].set_title('CoM and ZMP Y Coordinates')
+        self.ax[2].set_title('CoM Z Coordinates')
+        self.ax[3].set_title('Left Foot X Coordinates')
+        self.ax[4].set_title('Left Foot Y Coordinates')
+        self.ax[5].set_title('Left Foot Z Coordinates')
+
+        # Adjust the layout
+        plt.subplots_adjust(hspace=1.5)  # Adjust vertical spacing
+
         plt.ion()
         plt.show()
 
     def update_plot(self):
         # append data
-        self.com_x_data_1 .append(self.desired.com_position[0])
-        self.com_y_data_1 .append(self.desired.com_position[1])
-        self.com_z_data_1 .append(self.desired.com_position[2])
-        self.com_x_data_2 .append(self.current.com_position[0])
-        self.com_y_data_2 .append(self.current.com_position[1])
-        self.com_z_data_2 .append(self.current.com_position[2])
+        self.com_x_data_1.append(self.desired.com_position[0])
+        self.com_y_data_1.append(self.desired.com_position[1])
+        self.com_z_data_1.append(self.desired.com_position[2])
+        self.com_x_data_2.append(self.current.com_position[0])
+        self.com_y_data_2.append(self.current.com_position[1])
+        self.com_z_data_2.append(self.current.com_position[2])
         self.foot_x_data_1.append(self.desired.left_foot_pose[3])
         self.foot_y_data_1.append(self.desired.left_foot_pose[4])
         self.foot_z_data_1.append(self.desired.left_foot_pose[5])
@@ -335,10 +385,12 @@ if __name__ == "__main__":
             body.setMass(1e-8)
             body.setInertia(default_inertia)
 
-    node = Hrp4Controller(world, hrp4)
+    
 
     # create world node and add it to viewer
     viewer = dart.gui.osg.Viewer()
+
+    node = Hrp4Controller(world, hrp4, viewer)
     node.setTargetRealTimeFactor(10) # speed up the visualization by 10x
     viewer.addWorldNode(node)
 

@@ -16,6 +16,24 @@ class FootTrajectoryGenerator:
     swing_foot = 'left' if support_foot == 'right' else 'right'
     single_support_duration = self.footstep_planner.footstep_plan[step_index]['ss_duration']
 
+    # here i check if have reached the last footstep in the plan and return False
+    if step_index == len(self.footstep_plan) - 1:
+        zero_vel = np.zeros(6)
+        zero_acc = np.zeros(6)
+        return {
+            'left': {
+                'pos': self.initial.left_foot_pose,
+                'vel': zero_vel,
+                'acc': zero_acc
+            },
+            'right': {
+                'pos': self.initial.right_foot_pose,
+                'vel': zero_vel,
+                'acc': zero_acc
+            },
+            "end_of_plan": True
+        }
+
     # if first step, return initial foot poses with zero velocities and accelerations
     if step_index == 0:
         zero_vel = np.zeros(6)
@@ -30,7 +48,8 @@ class FootTrajectoryGenerator:
                 'pos': self.initial.right_foot_pose,
                 'vel': zero_vel,
                 'acc': zero_acc
-            }
+            },
+            "end_of_plan": False
         }
 
     # if double support, return planned foot poses with zero velocities and accelerations
@@ -46,6 +65,7 @@ class FootTrajectoryGenerator:
         zero_vel = np.zeros(6)
         zero_acc = np.zeros(6)
         return {
+            
             support_foot: {
                 'pos': support_pose,
                 'vel': zero_vel,
@@ -55,7 +75,8 @@ class FootTrajectoryGenerator:
                 'pos': swing_pose,
                 'vel': zero_vel,
                 'acc': zero_acc
-            }
+            },
+            "end_of_plan": False
         }
     
     # get positions and angles for cubic interpolation
@@ -107,5 +128,6 @@ class FootTrajectoryGenerator:
 
     return {
         support_foot: support_data,
-        swing_foot: swing_data
+        swing_foot: swing_data,
+        "end_of_plan": False,
     }

@@ -1,0 +1,10 @@
+name: biped_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9  # You can specify the version of Python you prefer
+  - dartpy
+  - casadi
+  - scipy
+  - matplotlib
+
